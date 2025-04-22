@@ -1,0 +1,24 @@
+/*=====================================================================================
+ * Description:
+ *  // Заглушки функций обработки
+ *
+ *
+ *====================================================================================*/
+#ifndef _DESTAFF_H_
+#define _DESTAFF_H_
+
+#include <stdint.h>
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+int deStuff(const uint8_t* input, size_t len, uint8_t* output);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // _DESTAFF_H_
