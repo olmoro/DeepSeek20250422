@@ -11,6 +11,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/uart.h"
+#include "mb_crc.h"
 
 static const char* TAG = "UART1 Gateway";
  

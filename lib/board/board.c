@@ -11,16 +11,13 @@
 #include "driver/ledc.h"
 #include "esp_err.h"
 #include "esp_log.h"
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include "sdkconfig.h"
+// #include <freertos/FreeRTOS.h>
+// #include <freertos/task.h>
+// #include "sdkconfig.h"
 #include "driver/uart.h"
 
 static const char *TAG = "BOARD";
 
-// gpio_num_t _rgb_red_gpio = static_cast<gpio_num_t>(RGB_RED_GPIO);
-// gpio_num_t _rgb_green_gpio = static_cast<gpio_num_t>(RGB_GREEN_GPIO);
-// gpio_num_t _rgb_blue_gpio = static_cast<gpio_num_t>(RGB_BLUE_GPIO);
 gpio_num_t _rgb_red_gpio = RGB_RED_GPIO;
 gpio_num_t _rgb_green_gpio = RGB_GREEN_GPIO;
 gpio_num_t _rgb_blue_gpio = RGB_BLUE_GPIO;
@@ -145,51 +142,5 @@ void ledBlueToggle()
         gpio_set_level(_rgb_blue_gpio, 0);
     else
         gpio_set_level(_rgb_blue_gpio, 1);
-}
-
-
-uint16_t mb_crc16(const uint8_t *buffer, size_t length)
-{
-    uint16_t crc = 0xFFFF;
-
-    for (size_t i = 0; i < length; i++)
-    {
-        crc ^= (uint16_t)buffer[i];
-
-        for (uint8_t j = 0; j < 8; j++)
-        {
-            if (crc & 0x0001)
-            {
-                crc = (crc >> 1) ^ 0xA001;
-            }
-            else
-            {
-                crc >>= 1;
-            }
-        }
-    }
-
-    return crc;
-}
-
-/* Контрольные коды насчитывается с байта, следующего за SOH, поскольку два первых байта DLE
-    и SOH проверяются явно при выделении начала сообщения. Контрольные коды охватывают все байты,
-    включая ETX и все стаффинг символы в этом промежутке.
-*/
-uint16_t CRCode(const uint8_t *msg, size_t len)
-{
-    int j, crc = 0;
-    while (len-- > 0)
-    {
-        crc = crc ^ (int)*msg++ << 8;
-        for (j = 0; j < 8; j++)
-        {
-            if (crc & 0x8000)
-                crc = (crc << 1) ^ CRC_INIT;    //0x1021;
-            else
-                crc <<= 1;
-        }
-    }
-    return crc;
 }
 

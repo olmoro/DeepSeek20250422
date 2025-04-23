@@ -10,11 +10,11 @@
 #ifndef _BOARD_H_
 #define _BOARD_H_
 
-#include <stdint.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "driver/gpio.h"
+// #include <stdint.h>
+// #include "freertos/FreeRTOS.h"
+// #include "freertos/task.h"
+// #include "freertos/queue.h"
+// #include "driver/gpio.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -34,10 +34,6 @@ extern "C"
     void ledRedToggle();
     void ledGreenToggle();
     void ledBlueToggle();
-
-    uint16_t mb_crc16(const uint8_t *buffer, size_t length);
-    uint16_t CRCode(const uint8_t *msg, size_t len);
-
 
 #ifdef __cplusplus
 }
