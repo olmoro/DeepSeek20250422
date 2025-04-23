@@ -22,28 +22,34 @@ static SemaphoreHandle_t uart1_mutex;       //, uart2_mutex;
 // Задача обработки UART2 (спец. протокол)
 void uart2_task(void* arg) 
 {
-    uint8_t* packet = malloc(SP_MAX_LEN);
+    uint8_t* processed = malloc(SP_MAX_LEN);        // uint8_t* packet = malloc(SP_MAX_LEN);
     uint8_t* response = malloc(MB_MAX_LEN);
     
     while(1) 
     {
-        int len = uart_read_bytes(SP_PORT_NUM, packet, SP_MAX_LEN, pdMS_TO_TICKS(100));
+        //int len = uart_read_bytes(SP_PORT_NUM, packet, SP_MAX_LEN, pdMS_TO_TICKS(100));
+        int len = uart_read_bytes(SP_PORT_NUM, processed, SP_MAX_LEN, pdMS_TO_TICKS(100));
         
         if(len > 0) 
         {
-            uint8_t* processed = malloc(MB_MAX_LEN);
-            int processed_len = deStuff(packet, len, processed);
+            //uint8_t* processed = malloc(MB_MAX_LEN);
+            //int processed_len = deStuff(packet, len, processed);
+            int processed_len = deStaff(processed, len);
             
             if
-            (processed_len > 0) {
+            (processed_len > 0) 
+            {
                 // Упаковка в MODBUS (добавьте реальную упаковку)
+
+
+
                 xSemaphoreTake(uart1_mutex, portMAX_DELAY);
                 uart_write_bytes(MB_PORT_NUM, (const char*)processed, processed_len);
                 xSemaphoreGive(uart1_mutex);
             }
-            free(processed);
+            //free(processed);
         }
     }
-    free(packet);
+    free(processed);    // free(packet);
     free(response);
 }

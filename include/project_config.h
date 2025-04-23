@@ -17,7 +17,8 @@
 // ---------------------------------------------------------------------------------
 //                                  Версии
 // ---------------------------------------------------------------------------------
-#define APP_VERSION "MB_SP_00 20250422.01"
+#define APP_VERSION "MB_SP_00 20250422.02"
+// 202500422.02:  add: uart1_task OK                        RAM:  3.5%  Flash: 13.1%
 // 202500422.01:  add: mb_crc sp_crc                        RAM:  3.5%  Flash: 13.0%
 // 202500422.00:  add:                                      RAM:  3.5%  Flash: 13.3%
 
@@ -56,21 +57,22 @@
 //                                    Общие
 // ---------------------------------------------------------------------------------
 #define BUF_SIZE (240) // размер буфера
+#define BUF_MIN_SIZE (4) // минимальный размер буфера
 #define MAX_PDU_LENGTH 240
 
-// Структура для передаваемого пакета
-typedef struct
-{
-    uint8_t *data;
-    size_t length;
-} pdu_packet_t;
+// // Структура для передаваемого пакета
+// typedef struct
+// {
+//     uint8_t *data;
+//     size_t length;
+// } pdu_packet_t;
 
-// Структура для передаваемого пакета
-typedef struct 
-{
-  uint8_t *data;
-  size_t length;
-} msg_packet_t;
+// // Структура для передаваемого пакета
+// typedef struct 
+// {
+//   uint8_t *data;
+//   size_t length;
+// } msg_packet_t;
 
 // ---------------------------------------------------------------------------------
 //                                    MODBUS
@@ -86,7 +88,7 @@ typedef struct
 
 
 #define MB_MAX_LEN       250
-#define SP_MAX_LEN       500
+#define SP_MAX_LEN       MB_MAX_LEN * 2
 #define UART_BUF_SIZE    (1024 * 2)
 #define QUEUE_SIZE       10
 #define RESP_TIMEOUT_MS  100

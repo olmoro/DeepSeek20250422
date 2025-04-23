@@ -1,0 +1,249 @@
+#include "uart1_task.h"
+#include "board.h"
+#include "staff.h"
+#include "project_config.h"
+#include <string.h>
+#include <stdio.h>
+#include <stdint.h> // for standard int types definition
+#include "esp_err.h"
+#include "esp_log.h"
+#include "sdkconfig.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "driver/uart.h"
+#include "mb_crc.h"
+
+static const char* TAG = "UART1 Gateway";
+ 
+//static QueueHandle_t uart1_queue, uart2_queue;
+static SemaphoreHandle_t uart1_mutex, uart2_mutex;
+
+
+static SemaphoreHandle_t uart1_mutex = NULL;
+static SemaphoreHandle_t uart2_mutex = NULL;
+
+uint8_t addr = 0x00;    // адрес MB-slave
+uint8_t comm = 0x00;    // команда ( MB-функция)
+
+// Генерация MODBUS ошибки
+void generate_error(uint8_t* buffer, uint8_t error_code) 
+{
+    // Реальная реализация MODBUS ошибки
+
+    // buffer[0] = 0xFF; // Пример заголовка
+    // buffer[1] = error_code;
+    // //buffer[2] = 0x00;   
+    // //buffer[3] = 0x00;
+
+    uint8_t response[5] =
+        {
+            addr,               // Адрес
+            comm |= 0x80,       // Функция
+            error_code,         // Код ошибки
+            0x00, 0x00          // Место для CRC
+        };
+    uint8_t len = sizeof(response);
+
+    /* Расчет CRC для ответа */
+    uint16_t response_crc = mb_crc16(response, len - 2);
+    response[len - 2] = response_crc & 0xFF;  // 3
+    response[len - 1] = response_crc >> 8;    // 4
+
+    ESP_LOGI(TAG, "Response (%d bytes):", len);
+    for (int i = 0; i < len; i++)
+    {
+        printf("%02X ", response[i]);
+    }
+    printf("\n");
+}
+
+
+// Задача обработки UART1 (MODBUS)
+void uart1_task(void* arg) 
+{
+    uart1_mutex = xSemaphoreCreateMutex();
+    if (!uart1_mutex)
+    {
+        ESP_LOGE(TAG, "Mutex1 creation failed");
+        return;
+    }
+
+    uart2_mutex = xSemaphoreCreateMutex();
+    if (!uart2_mutex)
+    {
+        ESP_LOGE(TAG, "Mutex2 creation failed");
+        return;
+    }
+
+    uint8_t* packet = malloc(MB_MAX_LEN);
+    uint8_t* response = malloc(MB_MAX_LEN);
+    uint8_t error_packet[4] = {0};
+    uint16_t bytes = 0x00; // количество байт в содержательной части пакета (сообщение об ошибке)
+
+    
+    while(1) 
+    {
+        int len = uart_read_bytes(MB_PORT_NUM, packet, MB_MAX_LEN, pdMS_TO_TICKS(100));
+        
+        if(len > 0) 
+        {
+            // Проверка целостности пакета (добавьте реальную проверку CRC)
+            bool is_valid = true;
+            
+                //     // Начало нового фрейма
+                //     if (frame_buffer == NULL)
+                //     {
+                //         frame_buffer = malloc(MAX_PDU_LENGTH + 3); // + лишнее
+                //         frame_length = 0;
+                //     }
+
+                //     // Проверка переполнения буфера
+                //     if (frame_length + len > MAX_PDU_LENGTH + 3)
+                //     {
+                //         ESP_LOGE(TAG, "Buffer overflow! Discarding frame");
+                //         free(frame_buffer);
+                //         frame_buffer = NULL;
+                //         frame_length = 0;
+                //         is_valid = false;
+                //     }
+
+                //     ESP_LOGI(TAG, "len (%d bytes):", len);
+
+                //     memcpy(frame_buffer + frame_length, temp_buf, len);
+                //     frame_length += len;
+                //     last_rx_time = xTaskGetTickCount();
+
+                //     ESP_LOGI(TAG, "frame_buffer (%d bytes):", frame_length);
+                //     for (int i = 0; i < frame_length; i++)
+                //     {
+                //         printf("%02X ", frame_buffer[i]);
+                //     }
+                //     printf("\n");
+                // }
+
+                // Проверка завершения фрейма
+                // if (frame_buffer && (xTaskGetTickCount() - last_rx_time) > pdMS_TO_TICKS(MB_FRAME_TIMEOUT_MS))
+                // {
+            // Минимальная длина фрейма: адрес + функция + CRC
+            //if (frame_length < 4)
+            if (len < 4)
+            {
+                //ESP_LOGE(TAG, "Invalid frame length: %d", frame_length);
+                ESP_LOGE(TAG, "Invalid frame length: %d", len);
+                // free(frame_buffer);
+                // frame_buffer = NULL;
+                // frame_length = 0;
+                is_valid = false;   //continue;
+            }
+
+            // Проверка адреса
+            //if (frame_buffer[0] != SLAVE_ADDRESS)
+            if (packet[0] != SLAVE_ADDRESS)
+            {
+                //ESP_LOGW(TAG, "Address mismatch: 0x%02X", frame_buffer[0]);
+                ESP_LOGW(TAG, "Address mismatch: 0x%02X", packet[0]);
+                // free(frame_buffer);
+                // frame_buffer = NULL;
+                // frame_length = 0;
+                is_valid = false;   //continue;
+            }
+
+            // Проверка CRC
+            //uint16_t received_crc = (frame_buffer[frame_length - 1] << 8) | frame_buffer[frame_length - 2];
+            uint16_t received_crc = (packet[len - 1] << 8) | packet[len - 2];
+            //uint16_t calculated_crc = mb_crc16(frame_buffer, frame_length - 2);
+            uint16_t calculated_crc = mb_crc16(packet, len - 2);
+
+            if (received_crc != calculated_crc)
+            {
+                ESP_LOGE(TAG, "CRC error: %04X vs %04X", received_crc, calculated_crc);
+                // free(frame_buffer);
+                // frame_buffer = NULL;
+                // frame_length = 0;
+                is_valid = false;   //continue;
+            }
+
+            ESP_LOGI(TAG, "CRC OK");
+
+            // Подготовка PDU пакета
+            pdu_packet_t pdu =
+                {
+                    //.data = malloc(frame_length - 2),
+                    .data = malloc(len - 2),
+                    .length = len - 2, // Исключаем CRC
+                };
+
+            if (pdu.data == NULL)
+            {
+                ESP_LOGE(TAG, "Memory allocation failed!");
+                // free(frame_buffer);
+                // frame_buffer = NULL;
+                // frame_length = 0;
+                is_valid = false;   //continue;
+            }
+
+            //switch (frame_buffer[1])
+            switch (packet[1])
+            {
+            case 0x10:
+                // сохранить адрес и команду для ответа
+                //addr = frame_buffer[0];
+                addr = packet[0];
+                //comm = frame_buffer[1];
+                comm = packet[1];
+                //if (frame_buffer[frame_length] == 0x00)
+                if (packet[len] == 0x00)
+                    bytes = packet[6] - 1;
+
+                pdu.length = bytes;                                  // содержательная часть пакета в байтах
+                //memmove(frame_buffer, frame_buffer + 7, pdu.length); // сдвиг на 7 байтов
+                memmove(packet, packet + 7, pdu.length); // сдвиг на 7 байтов
+                break;
+
+                // case 0x : // другая команда
+
+            default:
+                break;
+            }
+
+            //memcpy(pdu.data, frame_buffer, pdu.length);
+            memcpy(pdu.data, packet, pdu.length);
+            pdu.length = bytes; // Это из-за терминала (он оперирует 16-битовым типом)
+
+            ESP_LOGI(TAG, "pdu.length %d bytes:", pdu.length); // OK
+            for (int i = 0; i < pdu.length; i++)
+            {
+                printf("%02X ", pdu.data[i]);
+            }
+            printf("\n");
+
+            // Отправка в UART2 или UART1, если ошибка
+
+            if(is_valid) 
+            {
+                uint8_t* processed = malloc(SP_MAX_LEN);
+
+                //int processed_len = staff(packet, len, processed);
+                int processed_len = staff(packet, len, processed, BUF_SIZE * 2);
+                
+                if(processed_len > 0) 
+                {
+                    xSemaphoreTake(uart2_mutex, portMAX_DELAY);
+                    uart_write_bytes(SP_PORT_NUM, (const char*)processed, processed_len);
+                    xSemaphoreGive(uart2_mutex);
+                }
+                free(processed);
+            } 
+            else 
+            {
+                generate_error(error_packet, 0x01); // Недопустимая функция
+                xSemaphoreTake(uart1_mutex, portMAX_DELAY);
+                uart_write_bytes(MB_PORT_NUM, (const char*)error_packet, sizeof(error_packet));
+                xSemaphoreGive(uart1_mutex);
+            }
+             //  }
+        }
+        free(packet);
+        free(response);
+    }
+}
