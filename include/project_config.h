@@ -17,7 +17,7 @@
 // ---------------------------------------------------------------------------------
 //                                  Версии
 // ---------------------------------------------------------------------------------
-#define APP_VERSION "MB_SP_00 20250422.02"
+#define APP_VERSION "MB_SP_00 20250422.03"
 // 202500422.02:  add: uart1_task OK                        RAM:  3.5%  Flash: 13.1%
 // 202500422.01:  add: mb_crc sp_crc                        RAM:  3.5%  Flash: 13.0%
 // 202500422.00:  add:                                      RAM:  3.5%  Flash: 13.3%
@@ -82,7 +82,7 @@
 
 #define MB_PORT_NUM UART_NUM_1
 #define MB_BAUD_RATE 9600
-#define SLAVE_ADDRESS 0x01
+#define SLAVE_ADDRESS 0x01 //+ 1
 #define MB_QUEUE_SIZE 2
 #define MB_FRAME_TIMEOUT_MS 4 // 3.5 символа при 19200 бод
 
@@ -124,7 +124,7 @@
 
 #define SP_ADDRESS 0x00
 #define SP_QUEUE_SIZE 2
-#define SP_FRAME_TIMEOUT_MS 4 // 3.5 символа при 19200 бод
+#define SP_FRAME_TIMEOUT_MS 10   // По факту
 
 // Константы протокола
 #define SOH 0x01        // Байт начала заголовка

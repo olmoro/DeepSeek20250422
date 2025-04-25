@@ -7,6 +7,7 @@
 #include "esp_system.h"
 #include "esp_err.h"
 #include "esp_log.h"
+//#include "sp_crc.h"
 
 /*
  - заголовок    | SOH | DAD | SAD | ISI | FNC | DataHead |
@@ -14,17 +15,6 @@
  - данные                                                | STX | DataSet | ETX |
  - контрольная информация                                                      | CRC1 | CRC2 |
  */
-
-//  #include "staff.h"
-//  #include "project_config.h"
-//  #include <stdint.h>
-//  #include <stdio.h>
-//  #include <string.h>
-//  #include <stdlib.h>
-//  #include "esp_system.h"
-//  #include "esp_err.h"
-//  #include "esp_log.h"
- 
  
  /* Для структурирования сообщений используются управляющие символы */
  #define DLE 0x10 // символ-префикс
@@ -43,8 +33,6 @@
  static const char *TAG = "STAFF";
 
 
-
-
 // // Заглушки функций обработки
 // int staff(const uint8_t* input, size_t len, uint8_t* output) {
 //     // Реальная обработка здесь
@@ -52,7 +40,6 @@
 //     return len;
 // }
 
-//int staff(const uint8_t *input, uint8_t *output, size_t input_len, size_t output_max_len, size_t *output_actual_len)
 int staff(const uint8_t *input, size_t input_len, uint8_t *output, size_t output_max_len)
 {
     size_t j = 0;
@@ -93,13 +80,13 @@ int staff(const uint8_t *input, size_t input_len, uint8_t *output, size_t output
         }
     }
 //    *output_actual_len = j;
-
+    #ifdef PRF
     ESP_LOGI(TAG, "Staffing (%d bytes):", j);
     for (int i = 0; i < j; i++)
     {
         printf("%02X ", output[i]);
     }
     printf("\n");
-
+    #endif
     return j;
 }

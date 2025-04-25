@@ -31,7 +31,7 @@ void app_main(void)
 
     // Создание задач
     xTaskCreate(uart1_task, "UART1 Task", 4096, NULL, 5, NULL);
-    xTaskCreate(uart2_task, "UART2 Task", 4096, NULL, 5, NULL);
+    xTaskCreate(uart2_task, "UART2 Task", 4096, NULL, 5, NULL);     // 6
 
     ESP_LOGI(TAG, "System initialized");
 

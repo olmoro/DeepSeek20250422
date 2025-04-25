@@ -15,7 +15,6 @@ extern "C"
 {
 #endif
 
-    //int deStaff(const uint8_t* input, size_t len, uint8_t* output);
     int deStaff(uint8_t* input, size_t len);
 
 #ifdef __cplusplus

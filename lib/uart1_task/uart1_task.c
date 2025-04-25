@@ -12,6 +12,9 @@
 #include "freertos/queue.h"
 #include "driver/uart.h"
 #include "mb_crc.h"
+#include "sp_crc.h"
+
+#define PRF
 
 static const char *TAG = "UART1 Gateway";
 
@@ -20,28 +23,32 @@ static SemaphoreHandle_t uart1_mutex, uart2_mutex;
 static SemaphoreHandle_t uart1_mutex = NULL;
 static SemaphoreHandle_t uart2_mutex = NULL;
 
-uint8_t addr = 0x00; // адрес MB-slave
-uint8_t comm = 0x00; // команда ( MB-функция)
+uint8_t mb_addr = 0x00;     // адрес mb-slave
+uint8_t mb_comm = 0x00;     // команда (mb-функция)
 
-uint8_t error_packet[5];
-uint8_t error_packet_len = sizeof(error_packet);
+uint8_t sp_request = 0x86;  // адрес sp-запросчика (предположительно)
+uint8_t sp_reply = 0x00;    // адрес sp-ответчика (предположительно)
+uint8_t sp_comm = 0x03;     // команда (sp-функция) (предположительно)
+
+uint8_t error_mb[5];
+uint8_t error_mb_len = sizeof(error_mb);
 
 // Генерация MODBUS ошибки
 static void generate_error(uint8_t error_code)
 {
-    error_packet[0] = addr;         // Адрес
-    error_packet[1] = comm |= 0x80; // Функция
-    error_packet[2] = error_code;   // Код ошибки
+    error_mb[0] = mb_addr;         // Адрес
+    error_mb[1] = mb_comm |= 0x80; // Функция
+    error_mb[2] = error_code;   // Код ошибки
 
     /* Расчет CRC для ответа */
-    uint16_t error_packet_crc = mb_crc16(error_packet, error_packet_len - 2);
-    error_packet[3] = error_packet_crc & 0xFF; // 3
-    error_packet[4] = error_packet_crc >> 8;   // 4
+    uint16_t error_mb_crc = mb_crc16(error_mb, error_mb_len - 2);
+    error_mb[3] = error_mb_crc & 0xFF; // 3
+    error_mb[4] = error_mb_crc >> 8;   // 4
 
-    ESP_LOGI(TAG, "Error_packet_len (%d bytes):", error_packet_len);
-    for (int i = 0; i < error_packet_len; i++)
+    ESP_LOGI(TAG, "Error_packet_len (%d bytes):", error_mb_len);
+    for (int i = 0; i < error_mb_len; i++)
     {
-        printf("%02X ", error_packet[i]);
+        printf("%02X ", error_mb[i]);
     }
     printf("\n");
 }
@@ -77,6 +84,7 @@ void uart1_task(void *arg)
         bool is_valid = true;
 
         int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
+        //int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(1000));
 
         if (len > 0)
         {
@@ -104,13 +112,14 @@ void uart1_task(void *arg)
             memcpy(frame_buffer + frame_length, temp_buf, len);
             frame_length += len;
             last_rx_time = xTaskGetTickCount();
-
+            #ifdef PRF
             ESP_LOGI(TAG, "frame_buffer (%d bytes):", frame_length);
             for (int i = 0; i < frame_length; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
+            #endif
         }
 
         // Проверка завершения фрейма
@@ -155,11 +164,11 @@ void uart1_task(void *arg)
             {
             case 0x10:
                 // сохранить адрес и команду для ответа
-                addr = frame_buffer[0];
-                comm = frame_buffer[1];
-                if (frame_buffer[frame_length] == 0x00) // Это из-за терминала (он оперирует 16-битовым типом)
-                    bytes = frame_buffer[6] - 1;
-
+                mb_addr = frame_buffer[0];
+                mb_comm = frame_buffer[1];
+                // if (frame_buffer[frame_length] == 0x00) // Это из-за терминала (он оперирует 16-битовым типом)
+                //     bytes = frame_buffer[6] - 1;
+                bytes = 0x13;
                 memmove(frame_buffer, frame_buffer + 7, bytes); // сдвиг на 7 байтов
                 break;
 
@@ -169,39 +178,62 @@ void uart1_task(void *arg)
                 break;
             }
 
-            ESP_LOGI(TAG, "length %d bytes:", bytes); //
+            #ifdef PRF
+            ESP_LOGI(TAG, "length %d bytes:", bytes); //    = 0
             for (int i = 0; i < bytes; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
-
+            #endif
             // Отправка в UART2 или UART1, если ошибка
+
+ //   ESP_LOGI(TAG, "1 MB OK?");
 
             if (is_valid)
             {
-                ledsGreen();
                 uint8_t *processed = malloc(BUF_SIZE * 2);
-                //@@@ int staff(const uint8_t *input, size_t input_len, uint8_t *output, size_t output_max_len);
+                int actual_len = staff(frame_buffer, bytes, processed, BUF_SIZE * 2);
+    ESP_LOGI(TAG, "actual_len %d bytes:", actual_len); //
+ //   ESP_LOGI(TAG, "2 MB OK?");
+            
+                // Формирование ответа для UART2 (SP)
+                int sp_len = actual_len + 2; // +2 байта для контрольной суммы
+    ESP_LOGI(TAG, "sp_len %d bytes:", sp_len);
 
-                int processed_len = staff(frame_buffer, bytes, processed, BUF_SIZE * 2);
+                // Расчет CRC для uart2 без двух первых байтов
+                uint16_t response_crc = sp_crc16(processed + 2, actual_len - 2);
+    ESP_LOGI(TAG, "response_crc %04X :", response_crc);
 
-                if (processed_len > 0)
+                processed[actual_len + 1] = response_crc & 0xFF;
+                processed[actual_len] = response_crc >> 8;
+
+    ESP_LOGI(TAG, "5 MB OK?");
+           
+                #ifdef PRF
+                ESP_LOGI(TAG, "Response for send to SP (%d bytes):", sp_len);
+                for (int i = 0; i < sp_len; i++)
+                {
+                    printf("%02X ", processed[i]);
+                }
+                printf("\n");
+                #endif
+                if (sp_len > 0)
                 {
                     xSemaphoreTake(uart2_mutex, portMAX_DELAY);
-                    uart_write_bytes(SP_PORT_NUM, (const char *)processed, processed_len);
+                    uart_write_bytes(SP_PORT_NUM, (const uint8_t *)processed, sp_len);
                     xSemaphoreGive(uart2_mutex);
                 }
                 free(processed);
             }
             else
             {
-                ledsRed();
-
-                generate_error(0x01); // Недопустимая функция
+                generate_error(0x01);   // 0x01 - Недопустимая функция
                 xSemaphoreTake(uart1_mutex, portMAX_DELAY);
-                uart_write_bytes(MB_PORT_NUM, (const char *)error_packet, sizeof(error_packet));
+                uart_write_bytes(MB_PORT_NUM, (const char *)error_mb, sizeof(error_mb));
                 xSemaphoreGive(uart1_mutex);
+
+                ledsBlue();
             }
 
             free(frame_buffer);
