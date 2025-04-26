@@ -86,7 +86,7 @@ void uart2_task(void* arg)
         uint16_t bytes = 0x00;      // количество байт в содержательной части пакета (сообщение об ошибке)
         bool is_valid = true;
 
-        int len = uart_read_bytes(SP_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
+        int len = uart_read_bytes(SP_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(10));
 
         if(len > 0) 
         {

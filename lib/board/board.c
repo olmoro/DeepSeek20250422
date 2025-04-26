@@ -11,9 +11,6 @@
 #include "driver/ledc.h"
 #include "esp_err.h"
 #include "esp_log.h"
-// #include <freertos/FreeRTOS.h>
-// #include <freertos/task.h>
-// #include "sdkconfig.h"
 #include "driver/uart.h"
 
 static const char *TAG = "BOARD";
@@ -21,20 +18,29 @@ static const char *TAG = "BOARD";
 gpio_num_t _rgb_red_gpio = RGB_RED_GPIO;
 gpio_num_t _rgb_green_gpio = RGB_GREEN_GPIO;
 gpio_num_t _rgb_blue_gpio = RGB_BLUE_GPIO;
+gpio_num_t _flag_a_gpio   = A_FLAG_GPIO;
+gpio_num_t _flag_b_gpio   = B_FLAG_GPIO;
 void boardInit()
 {
     /* Инициализация GPIO (push/pull output) */
     gpio_reset_pin(_rgb_red_gpio);
     gpio_reset_pin(_rgb_green_gpio);
     gpio_reset_pin(_rgb_blue_gpio);
+    gpio_reset_pin(_flag_a_gpio);
+    gpio_reset_pin(_flag_b_gpio);
     gpio_set_direction(_rgb_red_gpio, GPIO_MODE_INPUT_OUTPUT);
     gpio_set_direction(_rgb_green_gpio, GPIO_MODE_INPUT_OUTPUT);
     gpio_set_direction(_rgb_blue_gpio, GPIO_MODE_INPUT_OUTPUT);
+    gpio_set_direction(_flag_a_gpio, GPIO_MODE_INPUT_OUTPUT);
+    gpio_set_direction(_flag_b_gpio, GPIO_MODE_INPUT_OUTPUT);
 
     /* Установка начального состояния (выключено) */
     gpio_set_level(_rgb_red_gpio, 0);
     gpio_set_level(_rgb_green_gpio, 0);
     gpio_set_level(_rgb_blue_gpio, 0);
+    gpio_set_level(_rgb_blue_gpio, 0);
+    gpio_set_level(_flag_a_gpio, 0);
+    gpio_set_level(_flag_b_gpio, 0);
 }
 
 void uart_mb_init()
@@ -48,12 +54,6 @@ void uart_mb_init()
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE, // RTS для управления направлением DE/RE !!
         .rx_flow_ctrl_thresh = 122,
     };
-
-    //     int intr_alloc_flags = 0;
-
-    // #if CONFIG_UART_ISR_IN_IRAM
-    //     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
-    // #endif
 
     ESP_ERROR_CHECK(uart_driver_install(MB_PORT_NUM, BUF_SIZE, BUF_SIZE, MB_QUEUE_SIZE, NULL, 0));
     ESP_ERROR_CHECK(uart_set_pin(MB_PORT_NUM, CONFIG_MB_UART_TXD, CONFIG_MB_UART_RXD, CONFIG_MB_UART_RTS, 32)); // IO32 свободен (трюк)
@@ -144,3 +144,30 @@ void ledBlueToggle()
         gpio_set_level(_rgb_blue_gpio, 1);
 }
 
+void flagA()
+{
+    if (gpio_get_level(_flag_a_gpio))
+        gpio_set_level(_flag_a_gpio, 0);
+    else
+        gpio_set_level(_flag_a_gpio, 1);
+}
+
+void flagB()
+{
+    if (gpio_get_level(_flag_b_gpio))
+        gpio_set_level(_flag_b_gpio, 0);
+    else
+        gpio_set_level(_flag_b_gpio, 1);
+}
+
+// void flagA(int a)
+// {
+//     if(a > 0) gpio_set_level(_flag_a_gpio, 1);
+//     else  gpio_set_level(_flag_a_gpio, 0);
+// }
+
+// void flagB(int b)
+// {
+//     if(b > 0) gpio_set_level(_flag_b_gpio, 1);
+//     else  gpio_set_level(_flag_b_gpio, 0);
+// }

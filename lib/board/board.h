@@ -10,12 +10,6 @@
 #ifndef _BOARD_H_
 #define _BOARD_H_
 
-// #include <stdint.h>
-// #include "freertos/FreeRTOS.h"
-// #include "freertos/task.h"
-// #include "freertos/queue.h"
-// #include "driver/gpio.h"
-
 #ifdef __cplusplus
 extern "C"
 {
@@ -34,6 +28,11 @@ extern "C"
     void ledRedToggle();
     void ledGreenToggle();
     void ledBlueToggle();
+
+    void flagA();
+    void flagB();
+    // void flagA(int);
+    // void flagB(int);
 
 #ifdef __cplusplus
 }
