@@ -1,3 +1,14 @@
+/*
+* Тестовый пакет (modbus RTU):
+* 01 10 00 00 00 0A 14 01 00 86 1F 1D 33 33 32 02 09 30 30 30 09 30 30 33 0C 03 00 E0 47 
+*                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  |< лишний байт, т.к. регистры двухбайтовые
+* Принятый пакет (modbus RTU):
+* 01 10 00 1F 01 86 00 1F 03 33 33 32 02 09 30 09 30 30 33 0C 09 32 30 36 30 31 30 30 30 30 35 09 20 0C 03 00 7F 
+*             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* Выделены байты, отправляемые и получаемые при тестировании целевого прибора
+* Тестовый пакет сгенерирован приложением DataBase2.
+*/
+
 #include "uart1_task.h"
 #include "board.h"
 #include "staff.h"
@@ -14,8 +25,6 @@
 #include "mb_crc.h"
 #include "sp_crc.h"
 
-#define PRF
-
 static const char *TAG = "UART1 Gateway";
 
 static SemaphoreHandle_t uart1_mutex, uart2_mutex;
@@ -23,27 +32,33 @@ static SemaphoreHandle_t uart1_mutex, uart2_mutex;
 static SemaphoreHandle_t uart1_mutex = NULL;
 static SemaphoreHandle_t uart2_mutex = NULL;
 
-uint8_t mb_addr = 0x00;     // адрес mb-slave
-uint8_t mb_comm = 0x00;     // команда (mb-функция)
+/* Данные исходной посылки сохраняются для генерации ответного пакета modbus */
+uint8_t mb_addr = 0x00;     // [0] адрес mb-slave
+uint8_t mb_comm = 0x00;     // [1] команда (mb-функция)
+uint16_t mb_reg = 0x0000;   // [2,3]
+uint16_t mb_regs = 0x0000;  // [4,5]
+uint8_t mb_bytes = 0x00;    // [6]
 
+/* Данные зарезервированы */
 uint8_t sp_request = 0x86;  // адрес sp-запросчика (предположительно)
 uint8_t sp_reply = 0x00;    // адрес sp-ответчика (предположительно)
 uint8_t sp_comm = 0x03;     // команда (sp-функция) (предположительно)
 
+/* Данные пакета пакета modbus при ошибке */
 uint8_t error_mb[5];
 uint8_t error_mb_len = sizeof(error_mb);
 
-// Генерация MODBUS ошибки
+// Генерация MODBUS ошибки (сокращённый формат)
 static void generate_error(uint8_t error_code)
 {
-    error_mb[0] = mb_addr;         // Адрес
-    error_mb[1] = mb_comm |= 0x80; // Функция
-    error_mb[2] = error_code;   // Код ошибки
+    error_mb[0] = mb_addr;          // Адрес
+    error_mb[1] = mb_comm |= 0x80;  // Функция
+    error_mb[2] = error_code;       // Код ошибки
 
-    /* Расчет CRC для ответа */
+    /* Расчет CRC для ответа (младший, потом старший)*/
     uint16_t error_mb_crc = mb_crc16(error_mb, error_mb_len - 2);
-    error_mb[3] = error_mb_crc & 0xFF; // 3
-    error_mb[4] = error_mb_crc >> 8;   // 4
+    error_mb[3] = error_mb_crc & 0xFF; // младший
+    error_mb[4] = error_mb_crc >> 8;   // старший
 
     ESP_LOGI(TAG, "Error_packet_len (%d bytes):", error_mb_len);
     for (int i = 0; i < error_mb_len; i++)
@@ -57,7 +72,7 @@ static void generate_error(uint8_t error_code)
 void uart1_task(void *arg)
 {
     // Создание очереди и мьютекса
-    // Настройка очередей UART (если нужно)
+    // Настройка очередей UART (очередей пока нет)
 
     uart1_mutex = xSemaphoreCreateMutex();
     if (!uart1_mutex)
@@ -80,25 +95,24 @@ void uart1_task(void *arg)
     while (1)
     {
         uint8_t temp_buf[BUF_SIZE]; // уточнить
-        uint16_t bytes = 0x00;      // количество байт в содержательной части пакета (сообщение об ошибке)
+        uint16_t bytes = 0x00;      // количество байт в содержательной части пакета или сообщения об ошибке
         bool is_valid = true;
 
         int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(100));
-        //int len = uart_read_bytes(MB_PORT_NUM, temp_buf, sizeof(temp_buf), pdMS_TO_TICKS(1000));
 
         if (len > 0)
         {
-            // Проверка целостности пакета (добавьте реальную проверку CRC)
+            // Проверка целостности пакета
 
             // Начало нового фрейма
             if (frame_buffer == NULL)
             {
-                frame_buffer = malloc(MAX_PDU_LENGTH + 3); // + лишнее
+                frame_buffer = malloc(MAX_PDU_LENGTH);
                 frame_length = 0;
             }
 
             // Проверка переполнения буфера
-            if (frame_length + len > MAX_PDU_LENGTH + 3)
+            if (frame_length + len > MAX_PDU_LENGTH)
             {
                 ESP_LOGE(TAG, "Buffer overflow! Discarding frame");
                 free(frame_buffer);
@@ -112,14 +126,13 @@ void uart1_task(void *arg)
             memcpy(frame_buffer + frame_length, temp_buf, len);
             frame_length += len;
             last_rx_time = xTaskGetTickCount();
-            #ifdef PRF
+
             ESP_LOGI(TAG, "frame_buffer (%d bytes):", frame_length);
             for (int i = 0; i < frame_length; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
-            #endif
         }
 
         // Проверка завершения фрейма
@@ -168,7 +181,7 @@ void uart1_task(void *arg)
                 mb_comm = frame_buffer[1];
                 // if (frame_buffer[frame_length] == 0x00) // Это из-за терминала (он оперирует 16-битовым типом)
                 //     bytes = frame_buffer[6] - 1;
-                bytes = 0x13;
+                bytes = 0x13;       // Нечётное количество байтов в тестовом пакете
                 memmove(frame_buffer, frame_buffer + 7, bytes); // сдвиг на 7 байтов
                 break;
 
@@ -178,24 +191,19 @@ void uart1_task(void *arg)
                 break;
             }
 
-            #ifdef PRF
             ESP_LOGI(TAG, "length %d bytes:", bytes); //    = 0
             for (int i = 0; i < bytes; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
-            #endif
             // Отправка в UART2 или UART1, если ошибка
-
- //   ESP_LOGI(TAG, "1 MB OK?");
 
             if (is_valid)
             {
                 uint8_t *processed = malloc(BUF_SIZE * 2);
                 int actual_len = staff(frame_buffer, bytes, processed, BUF_SIZE * 2);
     ESP_LOGI(TAG, "actual_len %d bytes:", actual_len); //
- //   ESP_LOGI(TAG, "2 MB OK?");
             
                 // Формирование ответа для UART2 (SP)
                 int sp_len = actual_len + 2; // +2 байта для контрольной суммы
@@ -208,16 +216,13 @@ void uart1_task(void *arg)
                 processed[actual_len + 1] = response_crc & 0xFF;
                 processed[actual_len] = response_crc >> 8;
 
-    ESP_LOGI(TAG, "5 MB OK?");
-           
-                #ifdef PRF
                 ESP_LOGI(TAG, "Response for send to SP (%d bytes):", sp_len);
                 for (int i = 0; i < sp_len; i++)
                 {
                     printf("%02X ", processed[i]);
                 }
                 printf("\n");
-                #endif
+
                 if (sp_len > 0)
                 {
                     xSemaphoreTake(uart2_mutex, portMAX_DELAY);

@@ -1,3 +1,8 @@
+/*
+ * На данный момент сообщений об ошибках нет. Данные неизвестны.
+ *
+*/
+
 #include "uart2_task.h"
 #include "board.h"
 #include "destaff.h"
@@ -16,7 +21,6 @@
 
 static const char* TAG = "UART2 Gateway";
 
-                        //static QueueHandle_t uart1_queue, uart2_queue;
 static SemaphoreHandle_t uart1_mutex, uart2_mutex;
 
 static SemaphoreHandle_t uart1_mutex = NULL;
@@ -35,9 +39,9 @@ uint8_t error_sp_len = sizeof(error_sp);
 // Генерация MODBUS ошибки
 static void generate_error(uint8_t error_code)
 {
-    error_sp[0] = mb_addr;         // Адрес
-    error_sp[1] = mb_comm |= 0x80; // Функция
-    error_sp[2] = error_code;   // Код ошибки
+    error_sp[0] = mb_addr;          // Адрес
+    error_sp[1] = mb_comm |= 0x80;  // Функция
+    error_sp[2] = error_code;       // Код ошибки
 
     /* Расчет CRC для ответа */
     uint16_t error_sp_crc = mb_crc16(error_sp, error_sp_len - 2);
@@ -55,9 +59,6 @@ static void generate_error(uint8_t error_code)
 // Задача обработки UART2 (спец. протокол)
 void uart2_task(void* arg) 
 {
-    // uint8_t* processed = malloc(SP_MAX_LEN);        // uint8_t* packet = malloc(SP_MAX_LEN);
-    // uint8_t* response = malloc(MB_MAX_LEN);
- 
     // Создание очереди и мьютекса
     // Настройка очередей UART (если нужно)
 
@@ -89,7 +90,7 @@ void uart2_task(void* arg)
 
         if(len > 0) 
         {
-            // Проверка целостности пакета (добавьте реальную проверку CRC)
+            // Проверка целостности пакета
 
             // Начало нового фрейма
             if (frame_buffer == NULL)
@@ -113,14 +114,13 @@ void uart2_task(void* arg)
             memcpy(frame_buffer + frame_length, temp_buf, len);
             frame_length += len;
             last_rx_time = xTaskGetTickCount();
-            #ifdef PRF
+
             ESP_LOGI(TAG, "frame_buffer (%d bytes):", frame_length);
             for (int i = 0; i < frame_length; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
-            #endif
         }
 
         // Проверка завершения фрейма
@@ -172,31 +172,25 @@ void uart2_task(void* arg)
             bytes = frame_length - 4;                                               // Пакет будет на 4 байта короче
             memmove(frame_buffer, frame_buffer + 2, bytes);                         // сдвиг на 2 байта
 
-            #ifdef PRF
             ESP_LOGI(TAG, "length %d bytes:", bytes);
             for (int i = 0; i < bytes; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
-            #endif
+
             // Дестаффинг
             bytes = deStaff(frame_buffer, bytes); 
 
-            #ifdef PRF
             ESP_LOGI(TAG, "Destaffing (%d bytes):", bytes);
             for (int i = 0; i < bytes; i++)
             {
                 printf("%02X ", frame_buffer[i]);
             }
             printf("\n");
-            #endif
             
             if (is_valid)
             {
-
-
-
                 /* Формирование ответа для UART1 (MB) */
                 // bytes: mb_addr mb_comm bytes_h,l <- bytes -> mb-crc_h,l =- bytes + 6
                 uint8_t *responce = malloc(bytes + 6);
@@ -219,32 +213,27 @@ void uart2_task(void* arg)
                 /* Расчет CRC для ответа */
                 uint16_t responce_mb_crc = mb_crc16(responce, bytes);
                 responce[bytes + 1] = responce_mb_crc & 0xFF;   // 3
-                responce[bytes +2 ] = responce_mb_crc >> 8;     // 4
+                responce[bytes + 2] = responce_mb_crc >> 8;     // 4
 
                 bytes += 2; // Добавлена CRC
-                #ifdef PRF
+
                 ESP_LOGI(TAG, "responce (%d bytes):", bytes);
                 for (int i = 0; i < bytes; i++)
                 {
                     printf("%02X ", responce[i]);
                 }
                 printf("\n");
-                #endif
+
                 // Отправка если нет ошибки
 
                 xSemaphoreTake(uart1_mutex, portMAX_DELAY);
                 uart_write_bytes(MB_PORT_NUM, (const char *)responce, bytes);
                 xSemaphoreGive(uart1_mutex);
-    // 01 10 00 1F 01 86 00 1F 03 33 33 32 02 09 30 09 30 30 33 0C 09 32 30 36 30 31 30 30 30 30 35 09 20 0C 03 00 7F 
-                // Отправка ответа в случае ошибки
-
-
-
+                    // 01 10 00 1F 01 86 00 1F 03 33 33 32 02 09 30 09 30 30 33 0C 09 32 30 36 30 31 30 30 30 30 35 09 20 0C 03 00 7F 
                 // Освобождение памяти
                 free(responce);
 
                 ledsBlue();
-
             }
             else
             {

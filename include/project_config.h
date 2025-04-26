@@ -17,7 +17,8 @@
 // ---------------------------------------------------------------------------------
 //                                  Версии
 // ---------------------------------------------------------------------------------
-#define APP_VERSION "MB_SP_00 20250422.03"
+#define APP_VERSION "MB_SP_00 20250422.04"
+// 202500422.04:  add:                          RAM:  3.5%  Flash: 13.1%
 // 202500422.02:  add: uart1_task OK                        RAM:  3.5%  Flash: 13.1%
 // 202500422.01:  add: mb_crc sp_crc                        RAM:  3.5%  Flash: 13.0%
 // 202500422.00:  add:                                      RAM:  3.5%  Flash: 13.3%
@@ -60,19 +61,6 @@
 #define BUF_MIN_SIZE (4) // минимальный размер буфера
 #define MAX_PDU_LENGTH 240
 
-// // Структура для передаваемого пакета
-// typedef struct
-// {
-//     uint8_t *data;
-//     size_t length;
-// } pdu_packet_t;
-
-// // Структура для передаваемого пакета
-// typedef struct 
-// {
-//   uint8_t *data;
-//   size_t length;
-// } msg_packet_t;
 
 // ---------------------------------------------------------------------------------
 //                                    MODBUS
@@ -93,27 +81,6 @@
 #define QUEUE_SIZE       10
 #define RESP_TIMEOUT_MS  100
 
-
-
-
-// #define QUEUE_LENGTH 10        // Максимальное количество элементов в очереди
-// #define ITEM_SIZE sizeof(modbus_packet_t)
-
-// Test
-// #define CONFIG_STAFF_TASK_STACK_SIZE 1024 * 4
-// #define CONFIG_STAFF_TASK_PRIORITY CONFIG_SLAVE_TASK_PRIORITY - 1 // 9
-
-
-// /* Используются две очереди FreeRTOS для двусторонней коммуникации */
-// QueueHandle_t modbus_queue;
-// QueueHandle_t processing_queue;
-
-// /* Используются две очереди FreeRTOS для двусторонней коммуникации */
-// typedef struct
-// {
-//     QueueHandle_t modbus_queue;    // От Modbus к SPnet
-//     QueueHandle_t process_queue; // От SPnet к Modbus
-// } TaskQueues;
 
 // ---------------------------------------------------------------------------------
 //                                    SP
@@ -139,10 +106,10 @@
 //                                    Задачи (предварительно)
 // ---------------------------------------------------------------------------------
 
-// Размер стеков
-#define CONFIG_MB_TASK_STACK_SIZE 1024 * 4
-#define CONFIG_PR_TASK_STACK_SIZE 1024 * 4
+// // Размер стеков
+// #define CONFIG_MB_TASK_STACK_SIZE 1024 * 4
+// #define CONFIG_PR_TASK_STACK_SIZE 1024 * 4
 
-// Приоритеты
-#define CONFIG_MB_RECEIVE_TASK_PRIORITY 5 // modbus_receive_task
-#define CONFIG_PROCESSING_TASK_PRIORITY 4 // processing_task
+// // Приоритеты
+// #define CONFIG_MB_RECEIVE_TASK_PRIORITY 5 // modbus_receive_task
+// #define CONFIG_PROCESSING_TASK_PRIORITY 4 // processing_task
